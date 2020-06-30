@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimulia_post_office/constants/appcolours.dart';
 import 'package:shimulia_post_office/src/screens/chat_util/chat_messages.dart';
@@ -25,21 +28,31 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
   TextEditingController textFieldController;
   List<Message> _messages;
   bool _doNotAdd = false;
+  StreamController<bool> _streamController;
 
   @override
-  void initState(){
+  void initState() {
     super.initState();
     noname = true;
-    channel = IOWebSocketChannel.connect('ws://www.ragib.me:80/ws/chat/turzo/');
     _messages = List();
     textFieldController = TextEditingController();
+    try {
+      channel =
+          IOWebSocketChannel.connect('ws://www.ragib.me:80/ws/chat/turzo/');
+    }catch (e){
+    debugPrint('$e');
+    }
+    _streamController = StreamController<bool>();
+    readMessage();
   }
 
   @override
-  void dispose(){
+  void dispose() async{
 //    widget.channel.sink.close(status.goingAway);
-  if(channel!=null)
-    channel.sink.close(status.goingAway);
+    if (channel != null)
+      channel.sink.close(status.goingAway);
+    _streamController.close();
+    await writeMessage();
     super.dispose();
   }
 
@@ -57,16 +70,19 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
           },
           child: Row(
             children: <Widget>[
-              Icon(
-                Icons.arrow_back,
-                size: 24.0,
-                color: Colors.white,
-              ),
-              CircleAvatar(
-                radius: 15.0,
-                backgroundImage: CachedNetworkImageProvider(
-                  'https://banner2.cleanpng.com/20180330/gdw/kisspng-iphone-emoji-apple-ios-11-emojis-5abe1fe3470cf8.3253064115224094432911.jpg',
-              ),
+//              Icon(
+//                Icons.arrow_back,
+//                size: 24.0,
+//                color: Colors.white,
+//              ),
+              Container(
+                margin: EdgeInsets.only(top: 5.0,left: 5.0,bottom: 5.0),
+                child: CircleAvatar(
+                  radius: 25.0,
+                  backgroundImage: CachedNetworkImageProvider(
+                    'https://banner2.cleanpng.com/20180330/gdw/kisspng-iphone-emoji-apple-ios-11-emojis-5abe1fe3470cf8.3253064115224094432911.jpg',
+                  ),
+                ),
               ),
             ],
           ),
@@ -89,7 +105,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 2.0),
                       child: Text(
-                        name??'Turzo',
+                        'Friends Forever',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 18.0,
@@ -103,49 +119,80 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
           ),
         ),
       ),
-      body: Column(
-        mainAxisSize: MainAxisSize.max,
-        children: <Widget>[
-          Flexible(
-            flex: 1,
-            child:
-//            FutureBuilder(
-//              future: widget._prefs,
-//              builder:(_,snapshot){
-//                if(snapshot.connectionState == ConnectionState.done && snapshot.hasData && !snapshot.hasError)
-//                  return
-            StreamBuilder(
-                  stream: channel.stream,
-                  builder: (context, snapshot) {
+      body: _buildBody(),
+    );
+  }
 
-                        if (snapshot.hasError) {
-                          return Center(
-                            child: Text('Error: ${snapshot.error}'),
-                          );
-                        }else{
-                          if(snapshot.hasData){
-                            var __message = jsonDecode(snapshot.data);
-                            var __msg = __message['message']['message'];
-                            var __name = __message['message']['name'];
-                            if(!_doNotAdd) {
-                              bool _isYou = false;
-                              if(name != null && __name == name ) _isYou = true;
-                              _messages.insert(
-                                  0,
-                                  Message(
-                                    content: __msg,
-                                    timestamp: DateTime.now(),
-                                    isRead: false,
-                                    isYou: _isYou,
-                                    isSent: _isYou,
-                                  )
-                              );
-                            }else{
-                              _doNotAdd = false;
-                            }
-                          }
-                        }
+  void _sendMessage(BuildContext context) async {
+    if (noname) {
+      await _callnew(context);
+    }
+    if (textFieldController.text != null &&
+        textFieldController.text.isNotEmpty) {
+//      widget.channel.sink.add(textFieldController.text);
+      var _toSend = {
+        'message': {
+          'message': textFieldController.text,
+          'name': name
+        }
+      };
+      bool _isSent = true;
+      if (channel != null) {
+        try {
+          channel.sink.add(jsonEncode(_toSend));
+        } on WebSocketChannelException {
+          _isSent =false;
+        } catch (e){
+          _isSent =false;
+        }
 
+      }
+      _doNotAdd = true;
+      setState(() {
+        _messages.insert(
+            0,
+            new Message(
+              content: textFieldController.text,
+              timestamp: DateTime.now(),
+              isRead: false,
+              isYou: true,
+              isSent: _isSent,
+              sender: name,
+            )
+        );
+      });
+      textFieldController.text = '';
+    }
+  }
+
+  Future<void> _callnew(BuildContext context) async {
+    if (noname) {
+      noname = false;
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      name = prefs.getString('name');
+      if (name == null || name.isEmpty) {
+        name = await Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => SelectName()),);
+        await prefs.setString('name', name);
+      }
+    }
+  }
+
+  Widget _buildBody() {
+    return StreamBuilder(
+      stream: _streamController.stream,
+      builder: (_, __) {
+        if (channel != null)
+          return Column(
+            mainAxisSize: MainAxisSize.max,
+            children: <Widget>[
+              Flexible(
+                flex: 1,
+                child:
+                StreamBuilder(
+                    stream: channel.stream,
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
                         return ListView.builder(
                             reverse: true,
                             itemCount: _messages.length,
@@ -159,123 +206,222 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                                 fontSize: 15.0,
                               );
                             });
-                  }),
+                      } else {
+                        if (snapshot.hasData) {
+                          var __message = jsonDecode(snapshot.data);
+                          String __msg = __message['message']['message'] as String;
+                          String __name = __message['message']['name'] as String;
+                          if (__name != name ) {
+                            if (_messages[0].content !=
+                                __message)
+                            _messages.insert(
+                                0,
+                                Message(
+                                  content: __msg,
+                                  timestamp: DateTime.now(),
+                                  isRead: false,
+                                  isYou: false,
+                                  isSent: false,
+                                  sender: __name,
+                                )
+                            );
+                          }
+                          else {
+                            if (_doNotAdd)
+                              _doNotAdd = false;
+                            else {
+                              if (_messages[0].content !=
+                                  __message)
+                                _messages.insert(
+                                    0,
+                                    Message(
+                                      content: __msg,
+                                      timestamp: DateTime.now(),
+                                      isRead: false,
+                                      isYou: true,
+                                      isSent: true,
+                                      sender: name,
+                                    )
+                                );
+                            }
+                          }
+                        }
+                      }
+
+                      return ListView.builder(
+                          reverse: true,
+                          itemCount: _messages.length,
+                          itemBuilder: (context, i) {
+                            return MessageItem(
+                              content: _messages[i].content,
+                              timestamp: _messages[i].timestamp,
+                              isYou: _messages[i].isYou,
+                              isRead: _messages[i].isRead,
+                              isSent: _messages[i].isSent,
+                              fontSize: 15.0,
+                              sender: _messages[i].sender,
+                            );
+                          });
+                    }),
 //                return Container();
 //              }
 //            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              mainAxisSize: MainAxisSize.max,
-              children: <Widget>[
-                Flexible(
-                  flex: 1,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius:
-                      BorderRadius.all(const Radius.circular(30.0)),
-                      color: Colors.white,
-                    ),
-                    child: Row(
-                      children: <Widget>[
-                        IconButton(
-                          padding: const EdgeInsets.all(0.0),
-                          disabledColor: iconColor,
-                          color: iconColor,
-                          icon: Icon(Icons.insert_emoticon),
-                          onPressed: () {},
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.max,
+                  children: <Widget>[
+                    Flexible(
+                      flex: 1,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius:
+                          BorderRadius.all(const Radius.circular(30.0)),
+                          color: Colors.white,
                         ),
-                        Flexible(
-                          child: TextField(
-                            controller: textFieldController,
-                            textCapitalization: TextCapitalization.sentences,
-                            textInputAction: TextInputAction.send,
-                            decoration: InputDecoration(
-                              border: InputBorder.none,
-                              contentPadding: const EdgeInsets.all(0.0),
-                              hintText: 'Type a message',
-                              hintStyle: TextStyle(
-                                color: textFieldHintColor,
-                                fontSize: 16.0,
-                              ),
-                              counterText: '',
+                        child: Row(
+                          children: <Widget>[
+                            IconButton(
+                              padding: const EdgeInsets.all(0.0),
+                              disabledColor: iconColor,
+                              color: iconColor,
+                              icon: Icon(Icons.insert_emoticon),
+                              onPressed: () {},
                             ),
-                            onSubmitted: (String text) {
-                                _sendMessage(context);
-                            },
-                            keyboardType: TextInputType.multiline,
-                            maxLines: null,
-                            maxLength: 1000,
+                            Flexible(
+                              child: TextField(
+                                controller: textFieldController,
+                                textCapitalization: TextCapitalization
+                                    .sentences,
+                                textInputAction: TextInputAction.send,
+                                decoration: InputDecoration(
+                                  border: InputBorder.none,
+                                  contentPadding: const EdgeInsets.all(0.0),
+                                  hintText: 'Type a message',
+                                  hintStyle: TextStyle(
+                                    color: textFieldHintColor,
+                                    fontSize: 16.0,
+                                  ),
+                                  counterText: '',
+                                ),
+                                onSubmitted: (String text) {
+                                  _sendMessage(context);
+                                },
+                                keyboardType: TextInputType.multiline,
+                                maxLines: null,
+                                maxLength: 1000,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4.0),
+                      child: FloatingActionButton(
+                        elevation: 2.0,
+                        backgroundColor: secondaryColor,
+                        foregroundColor: Colors.white,
+                        child: Icon(Icons.send),
+                        onPressed: () {
+                          _sendMessage(context);
+                        },
+                      ),
+                    )
+                  ],
+                ),
+              )
+            ],
+          );
+        else {
+          return
+            Container(
+              color: Colors.white,
+                child: Center(
+                  child: Card(
+                    elevation: 7.0,
+                    color: Colors.white,
+                    child: Center(
+                      child: InkWell(
+                        onTap: _tryAgain,
+                        child: Text(
+                          'No Internet\nClick here to try again',
+                          style: TextStyle(
+                            fontSize: 23,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 4.0),
-                  child: FloatingActionButton(
-                    elevation: 2.0,
-                    backgroundColor: secondaryColor,
-                    foregroundColor: Colors.white,
-                    child: Icon(Icons.send),
-                    onPressed: (){_sendMessage(context);},
-                  ),
                 )
-              ],
-            ),
-          )
-        ],
-      ),
+            );
+        }
+      },
     );
   }
-  void _sendMessage(BuildContext context) async{
-    if(noname) {
-      await _callnew(context);
-    }
-    if (textFieldController.text!=null && textFieldController.text.isNotEmpty) {
-//      widget.channel.sink.add(textFieldController.text);
-      var _toSend = {
-        'message': {
-          'message': textFieldController.text,
-          'name': name
-        }
-      };
-      if (channel != null)
-        channel.sink.add(jsonEncode(_toSend));
-      _doNotAdd = true;
-      setState(() {
-        _messages.insert(
-            0,
-            new Message(
-              content: textFieldController.text,
-              timestamp: DateTime.now(),
-              isRead: false,
-              isYou: true,
-              isSent: true,
-            )
-        );
-      });
-      textFieldController.text = '';
+
+  Future<void> _tryAgain() async {
+    if (channel == null) {
+      try {
+        channel =
+            IOWebSocketChannel.connect('ws://www.ragib.me:80/ws/chat/turzo/');
+        _streamController.sink.add(true);
+      }catch (e){
+        debugPrint('$e');
+      }
     }
   }
 
-  Future<void> _callnew(BuildContext context) async{
-    if(noname){
-      noname = false;
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      name = await prefs.getString('name');
-      debugPrint('got from shared pref');
-      debugPrint(prefs.getString('name'));
-      if(name == null || name.isEmpty) {
-        name = await Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => SelectName()),);
-        await prefs.setString('name', name);
-        debugPrint('got from Screen');
-        debugPrint(prefs.getString('name'));
+  Future<void> readMessage() async {
+    try {
+
+      final file = await _localFile;
+      bool _exists = await file.exists();
+      if(_exists) {
+        // Read the file.
+        String __contents = await file.readAsString();
+
+        var __messgs = jsonDecode(__contents) as List;
+        List<Message> _msgList = __messgs.map((_msgItem) =>
+            Message.fromJson(_msgItem)).toList();
+        setState(() {
+          _messages.addAll(_msgList);
+        });
+        _messages.forEach((f) {
+          debugPrint('${f.content}');
+        });
+      }else{
+        debugPrint('file does not exists');
       }
+    } catch (e) {
+      // If encountering an error, return 0.
+      debugPrint('error : $e');
+      return ;
     }
+  }
+
+
+  Future<File> writeMessage() async {
+    debugPrint('inside write');
+    String _toWrite = jsonEncode(_messages);
+    final file = await _localFile;
+    // Write the file.
+    debugPrint(_toWrite);
+    return file.writeAsString(_toWrite);
+  }
+
+
+  Future<File> get _localFile async {
+    final path = await _localPath;
+    return File('$path/message.txt');
+  }
+
+
+  Future<String> get _localPath async {
+    final directory = await getApplicationDocumentsDirectory();
+    return directory.path;
   }
 }
 

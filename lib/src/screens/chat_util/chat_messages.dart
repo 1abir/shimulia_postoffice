@@ -6,13 +6,16 @@ class Message {
   bool isYou;
   bool isRead;
   bool isSent;
+  String sender;
 
   Message({
     this.content,
     this.timestamp,
     this.isYou,
     this.isRead,
-    this.isSent
+    this.isSent,
+    this.sender,
+
   }){
     timestamp = timestamp ?? DateTime.now();
   }
@@ -24,7 +27,19 @@ class Message {
       isYou: json["isYou"],
       isRead: json["isRead"],
       isSent: true,
+      sender: json["sender"],
     );
+  }
+
+  Map toJson(){
+    return {
+      'content' : content,
+      'timestamp' : timestamp.toIso8601String(),
+      'isYou' : isYou,
+      'isRead' : isRead,
+      'isSent' : isSent,
+      'sender' : sender,
+    };
   }
 }
 

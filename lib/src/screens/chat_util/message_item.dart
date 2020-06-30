@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:shimulia_post_office/constants/appcolours.dart';
 class MessageItem extends StatelessWidget {
   final String content;
+  final String sender;
   final DateTime timestamp;
   final bool isYou;
   final bool isRead;
@@ -16,6 +17,7 @@ class MessageItem extends StatelessWidget {
     this.isRead = false,
     this.isSent = true,
     this.fontSize,
+    this.sender,
   });
 
   @override
