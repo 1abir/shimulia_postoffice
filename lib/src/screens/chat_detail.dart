@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimulia_post_office/constants/appcolours.dart';
 import 'package:shimulia_post_office/src/screens/chat_util/chat_messages.dart';
@@ -14,6 +13,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/status.dart' as status;
 
 import 'chat_util/message_item.dart';
+import 'chat_util/web_socket_message_util.dart';
 
 
 class ChatDetailsPage extends StatefulWidget {
@@ -34,16 +34,8 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
   void initState() {
     super.initState();
     noname = true;
-    _messages = List();
     textFieldController = TextEditingController();
-    try {
-      channel =
-          IOWebSocketChannel.connect('ws://www.ragib.me:80/ws/chat/turzo/');
-    }catch (e){
-    debugPrint('$e');
-    }
     _streamController = StreamController<bool>();
-    readMessage();
   }
 
   @override
@@ -52,75 +44,82 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
     if (channel != null)
       channel.sink.close(status.goingAway);
     _streamController.close();
-    await writeMessage();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: chatDetailScaffoldBgColor,
-      appBar: AppBar(
-        backgroundColor: primaryColor,
-        leading: FlatButton(
-          shape: CircleBorder(),
-          padding: const EdgeInsets.only(left: 1.0),
-          onPressed: () {
-            Navigator.of(context).maybePop();
-          },
-          child: Row(
-            children: <Widget>[
+    if(channel == null) {
+      MessageLoader _ml = Provider.of<MessageLoader>(context, listen: false);
+      channel = _ml.channel;
+      _messages = _ml.messages;
+    }
+    if(_messages == null) {
+      _messages = Provider.of<MessageLoader>(context, listen: false).messages;
+    }
+      return Scaffold(
+        backgroundColor: chatDetailScaffoldBgColor,
+        appBar: AppBar(
+          backgroundColor: primaryColor,
+          leading: FlatButton(
+            shape: CircleBorder(),
+            padding: const EdgeInsets.only(left: 1.0),
+            onPressed: () {
+              Navigator.of(context).maybePop();
+            },
+            child: Row(
+              children: <Widget>[
 //              Icon(
 //                Icons.arrow_back,
 //                size: 24.0,
 //                color: Colors.white,
 //              ),
-              Container(
-                margin: EdgeInsets.only(top: 5.0,left: 5.0,bottom: 5.0),
-                child: CircleAvatar(
-                  radius: 25.0,
-                  backgroundImage: CachedNetworkImageProvider(
-                    'https://banner2.cleanpng.com/20180330/gdw/kisspng-iphone-emoji-apple-ios-11-emojis-5abe1fe3470cf8.3253064115224094432911.jpg',
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        title: Material(
-          color: Colors.white.withOpacity(0.0),
-          child: InkWell(
-            highlightColor: highlightColor,
-            splashColor: secondaryColor,
-            onTap: () {
-
-            },
-            child: Row(
-              mainAxisSize: MainAxisSize.max,
-              children: <Widget>[
-                Column(
-                  mainAxisSize: MainAxisSize.max,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                      child: Text(
-                        'Friends Forever',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18.0,
-                        ),
-                      ),
+                Container(
+                  margin: EdgeInsets.only(top: 5.0,left: 5.0,bottom: 5.0),
+                  child: CircleAvatar(
+                    radius: 25.0,
+                    backgroundImage: CachedNetworkImageProvider(
+                      'https://banner2.cleanpng.com/20180330/gdw/kisspng-iphone-emoji-apple-ios-11-emojis-5abe1fe3470cf8.3253064115224094432911.jpg',
                     ),
-                  ],
+                  ),
                 ),
               ],
             ),
           ),
+          title: Material(
+            color: Colors.white.withOpacity(0.0),
+            child: InkWell(
+              highlightColor: highlightColor,
+              splashColor: secondaryColor,
+              onTap: () {
+
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.max,
+                children: <Widget>[
+                  Column(
+                    mainAxisSize: MainAxisSize.max,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                        child: Text(
+                          'Friends Forever',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18.0,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
-      ),
-      body: _buildBody(),
-    );
+        body: _buildBody(),
+      );
   }
 
   void _sendMessage(BuildContext context) async {
@@ -145,10 +144,8 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
         } catch (e){
           _isSent =false;
         }
-
       }
       _doNotAdd = true;
-      setState(() {
         _messages.insert(
             0,
             new Message(
@@ -160,7 +157,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
               sender: name,
             )
         );
-      });
+        _doNotAdd =false;
       textFieldController.text = '';
     }
   }
@@ -248,20 +245,23 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                         }
                       }
 
-                      return ListView.builder(
-                          reverse: true,
-                          itemCount: _messages.length,
-                          itemBuilder: (context, i) {
-                            return MessageItem(
-                              content: _messages[i].content,
-                              timestamp: _messages[i].timestamp,
-                              isYou: _messages[i].isYou,
-                              isRead: _messages[i].isRead,
-                              isSent: _messages[i].isSent,
-                              fontSize: 15.0,
-                              sender: _messages[i].sender,
-                            );
-                          });
+                      return Selector<MessageLoader,int>(
+                        selector: (_,msgloader)=>_messages.length,
+                        builder:(context,__,___) => ListView.builder(
+                            reverse: true,
+                            itemCount: _messages.length,
+                            itemBuilder: (context, i) {
+                              return MessageItem(
+                                content: _messages[i].content,
+                                timestamp: _messages[i].timestamp,
+                                isYou: _messages[i].isYou,
+                                isRead: _messages[i].isRead,
+                                isSent: _messages[i].isSent,
+                                fontSize: 15.0,
+                                sender: _messages[i].sender,
+                              );
+                            }),
+                      );
                     }),
 //                return Container();
 //              }
@@ -374,54 +374,5 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
     }
   }
 
-  Future<void> readMessage() async {
-    try {
-
-      final file = await _localFile;
-      bool _exists = await file.exists();
-      if(_exists) {
-        // Read the file.
-        String __contents = await file.readAsString();
-
-        var __messgs = jsonDecode(__contents) as List;
-        List<Message> _msgList = __messgs.map((_msgItem) =>
-            Message.fromJson(_msgItem)).toList();
-        setState(() {
-          _messages.addAll(_msgList);
-        });
-        _messages.forEach((f) {
-          debugPrint('${f.content}');
-        });
-      }else{
-        debugPrint('file does not exists');
-      }
-    } catch (e) {
-      // If encountering an error, return 0.
-      debugPrint('error : $e');
-      return ;
-    }
-  }
-
-
-  Future<File> writeMessage() async {
-    debugPrint('inside write');
-    String _toWrite = jsonEncode(_messages);
-    final file = await _localFile;
-    // Write the file.
-    debugPrint(_toWrite);
-    return file.writeAsString(_toWrite);
-  }
-
-
-  Future<File> get _localFile async {
-    final path = await _localPath;
-    return File('$path/message.txt');
-  }
-
-
-  Future<String> get _localPath async {
-    final directory = await getApplicationDocumentsDirectory();
-    return directory.path;
-  }
 }
 
