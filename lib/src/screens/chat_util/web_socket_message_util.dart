@@ -24,17 +24,9 @@ class MessageLoader with ChangeNotifier{
     });
   }
 
-  @override
-  void dispose()async{
-    debugPrint('dispose of provider called');
-    await writeMessage();
-    super.dispose();
-  }
-
 
   Future<void> readMessage() async {
     try {
-
       final file = await _localFile;
       bool _exists = await file.exists();
       if(_exists) {

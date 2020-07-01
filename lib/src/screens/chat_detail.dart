@@ -57,68 +57,73 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
     if(_messages == null) {
       _messages = Provider.of<MessageLoader>(context, listen: false).messages;
     }
-      return Scaffold(
-        backgroundColor: chatDetailScaffoldBgColor,
-        appBar: AppBar(
-          backgroundColor: primaryColor,
-          leading: FlatButton(
-            shape: CircleBorder(),
-            padding: const EdgeInsets.only(left: 1.0),
-            onPressed: () {
-              Navigator.of(context).maybePop();
-            },
-            child: Row(
-              children: <Widget>[
+      return WillPopScope(
+        onWillPop: ()async{
+          return _onWillPop(context);
+        },
+        child: Scaffold(
+          backgroundColor: chatDetailScaffoldBgColor,
+          appBar: AppBar(
+            backgroundColor: primaryColor,
+            leading: FlatButton(
+              shape: CircleBorder(),
+              padding: const EdgeInsets.only(left: 1.0),
+              onPressed: () {
+                Navigator.of(context).maybePop();
+              },
+              child: Row(
+                children: <Widget>[
 //              Icon(
 //                Icons.arrow_back,
 //                size: 24.0,
 //                color: Colors.white,
 //              ),
-                Container(
-                  margin: EdgeInsets.only(top: 5.0,left: 5.0,bottom: 5.0),
-                  child: CircleAvatar(
-                    radius: 25.0,
-                    backgroundImage: CachedNetworkImageProvider(
-                      'https://banner2.cleanpng.com/20180330/gdw/kisspng-iphone-emoji-apple-ios-11-emojis-5abe1fe3470cf8.3253064115224094432911.jpg',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          title: Material(
-            color: Colors.white.withOpacity(0.0),
-            child: InkWell(
-              highlightColor: highlightColor,
-              splashColor: secondaryColor,
-              onTap: () {
-
-              },
-              child: Row(
-                mainAxisSize: MainAxisSize.max,
-                children: <Widget>[
-                  Column(
-                    mainAxisSize: MainAxisSize.max,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: <Widget>[
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                        child: Text(
-                          'Friends Forever',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18.0,
-                          ),
-                        ),
+                  Container(
+                    margin: EdgeInsets.only(top: 5.0,left: 5.0,bottom: 5.0),
+                    child: CircleAvatar(
+                      radius: 25.0,
+                      backgroundImage: CachedNetworkImageProvider(
+                        'https://banner2.cleanpng.com/20180330/gdw/kisspng-iphone-emoji-apple-ios-11-emojis-5abe1fe3470cf8.3253064115224094432911.jpg',
                       ),
-                    ],
+                    ),
                   ),
                 ],
               ),
             ),
+            title: Material(
+              color: Colors.white.withOpacity(0.0),
+              child: InkWell(
+                highlightColor: highlightColor,
+                splashColor: secondaryColor,
+                onTap: () {
+
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.max,
+                  children: <Widget>[
+                    Column(
+                      mainAxisSize: MainAxisSize.max,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                          child: Text(
+                            'Friends Forever',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18.0,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
+          body: _buildBody(),
         ),
-        body: _buildBody(),
       );
   }
 
@@ -209,8 +214,6 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                           String __msg = __message['message']['message'] as String;
                           String __name = __message['message']['name'] as String;
                           if (__name != name ) {
-                            if (_messages[0].content !=
-                                __message)
                             _messages.insert(
                                 0,
                                 Message(
@@ -228,7 +231,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                               _doNotAdd = false;
                             else {
                               if (_messages[0].content !=
-                                  __message)
+                                  __msg && __message[0].isYou == true) {
                                 _messages.insert(
                                     0,
                                     Message(
@@ -240,6 +243,7 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
                                       sender: name,
                                     )
                                 );
+                              }
                             }
                           }
                         }
@@ -372,6 +376,12 @@ class _ChatDetailsPageState extends State<ChatDetailsPage> {
         debugPrint('$e');
       }
     }
+  }
+
+  Future<bool> _onWillPop(BuildContext context) async{
+    await Provider.of<MessageLoader>(context,listen: false).writeMessage();
+    Navigator.of(context).maybePop();
+    return true;
   }
 
 }

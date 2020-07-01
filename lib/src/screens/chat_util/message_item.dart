@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shimulia_post_office/constants/appcolours.dart';
@@ -53,6 +54,28 @@ class MessageItem extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: <Widget>[
+                  isYou?SizedBox.shrink():Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Container(
+                        width: 100,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: <Widget>[
+                            Text(
+                              sender,
+                              style: TextStyle(
+                                color: Colors.blue,
+                                fontSize: 13.5,
+                              ),
+                            )
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                   Container(
                     constraints: BoxConstraints(
                       minWidth: 100.0,
@@ -87,12 +110,12 @@ class MessageItem extends StatelessWidget {
                             ),
                             isYou
                                 ? _getIcon()
-                                : Container()
+                                : SizedBox.shrink()
                           ],
                         ),
                       ),
                     ],
-                  )
+                  ),
                 ],
               )),
         ),
