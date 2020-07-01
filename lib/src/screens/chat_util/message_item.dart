@@ -60,9 +60,10 @@ class MessageItem extends StatelessWidget {
                     children: <Widget>[
                       Container(
                         width: 100,
+                        margin: EdgeInsets.only(bottom: 10.0),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.end,
+                          mainAxisAlignment: MainAxisAlignment.start,
                           children: <Widget>[
                             Text(
                               sender,
@@ -70,6 +71,7 @@ class MessageItem extends StatelessWidget {
                                 color: Colors.blue,
                                 fontSize: 13.5,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             )
                           ],
                         ),
