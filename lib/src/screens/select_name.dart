@@ -37,7 +37,9 @@ class SelectName extends StatelessWidget {
                               ),
                               keyboardType: TextInputType.text,
                               maxLength: 33,
+                              maxLines: 5,
                               maxLengthEnforced: true,
+                              initialValue: 'fdfsfsd',
                               style: TextStyle(
                                 fontFamily: "Poppins",
                               ),
